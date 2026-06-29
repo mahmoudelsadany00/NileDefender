@@ -1,0 +1,91 @@
+===================================================
+  NileDefender — Installation Guide
+===================================================
+
+
+===================================================
+  Option 1: Docker (Recommended — Easiest)
+===================================================
+
+Prerequisites:
+  - Docker & Docker Compose installed
+  - Git installed
+
+Steps:
+
+  1. Clone the project
+     git clone https://github.com/AbdelhamedRagheb/NileDefender.git
+     cd NileDefender
+
+  2. Build and run (first time)
+     sudo docker compose up -d --build
+
+  3. Open your browser
+     http://localhost:5000
+
+
+Docker Commands Reference:
+  Action          Command
+  ──────────────  ──────────────────────────────────────
+  Start           sudo docker compose up -d
+  Stop            sudo docker compose down
+  View logs       sudo docker compose logs -f
+  Update          git pull && sudo docker compose up -d --build
+  Restart         sudo docker compose restart
+
+
+===================================================
+  Option 2: Virtual Environment
+===================================================
+
+Prerequisites:
+  - Python 3.13
+  - Node.js 20+ & npm
+  - Git
+
+Steps:
+
+  1. Clone the project
+     git clone https://github.com/AbdelhamedRagheb/NileDefender.git
+     cd NileDefender
+
+  2. Create and activate Python virtual environment
+     python3.13 -m venv my-env
+     source my-env/bin/activate
+
+  3. Install Python dependencies
+     pip install -r requirements.txt
+
+  4. Build the React frontend
+     cd frontend
+     npm install
+     npm run build
+     cd ..
+
+  5. Run the server
+     python server.py
+
+  6. Open your browser
+     http://localhost:5000
+
+
+===================================================
+  Development Mode (Frontend Hot Reload)
+===================================================
+
+  If you want to modify the React frontend with live reloading:
+
+  # Terminal 1: Backend
+  cd NileDefender
+  source my-env/bin/activate
+  python server.py                    # → http://localhost:5000
+
+  # Terminal 2: Frontend dev server
+  cd NileDefender/frontend
+  npm run dev                         # → http://localhost:5173
+
+  Use http://localhost:5173 during development.
+  Vite auto-proxies API calls to Flask on port 5000.
+
+
+Enjoy! ❤️

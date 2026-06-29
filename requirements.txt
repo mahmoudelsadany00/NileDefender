@@ -1,0 +1,68 @@
+# ============================================
+# NileDefender - Complete Requirements
+# Python 3.13 Compatible
+# ============================================
+
+# Core Dependencies
+requests==2.32.3
+urllib3==2.2.3
+
+# Database
+sqlalchemy==2.0.36
+
+# DNS Resolution
+dnspython==2.7.0
+
+# HTML Parsing
+beautifulsoup4==4.12.3
+lxml==5.3.0
+
+# Configuration
+configparser==6.0.0
+
+# Terminal Output
+colorama==0.4.6
+
+# =============================================
+
+# Web UI dependencies
+flask==2.2.5
+Werkzeug==2.2.3
+flask-cors==4.0.0
+flask-socketio==5.3.5
+python-socketio==5.10.0
+simple-websocket>=1.0.0
+gevent>=23.9.1
+gevent-websocket>=0.10.1
+
+
+# Local Machine Crawling (Selenium) #git
+selenium>=4.15.0
+webdriver-manager>=4.0.0
+
+
+# =============================================
+# AI Report Dependencies
+# =============================================
+weasyprint==68.1
+openai
+
+
+# =============================================
+
+# External Tools
+# =============================================
+# ProjectDiscovery httpx (used in subdomain_enum.py for alive checking)
+# Install on Kali Linux:
+#   sudo apt install httpx-toolkit
+#   mkdir -p ~/.local/bin && ln -s /usr/bin/httpx-toolkit ~/.local/bin/httpx-pd
+#
+# Or download binary (any Linux):
+#   wget https://github.com/projectdiscovery/httpx/releases/latest/download/httpx_1.6.10_linux_amd64.zip
+#   unzip httpx_1.6.10_linux_amd64.zip
+#   mv httpx ~/.local/bin/httpx-pd && chmod +x ~/.local/bin/httpx-pd
+
+# ============================================
+# Installation
+# ============================================
+# pip install -r requirements.txt

@@ -1,0 +1,401 @@
+{
+  "name": "agent_idor_new",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "idor",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -928,
+        80
+      ],
+      "id": "16d7345b-9dab-449d-8cfc-cfa0a1936aa7",
+      "name": "Webhook",
+      "webhookId": "70207b78-3acd-4fc2-94c7-7a393debb517"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this endpoint for IDOR:\n{{ JSON.stringify($json) }}\n\n\n\n",
+        "options": {
+          "systemMessage": "System: You are an automated Dynamic Application Security Testing (DAST) Agent specializing in IDOR. Your goal is to systematically evaluate endpoints.\n\nFollow these strict evaluation steps:\nSTEP 1 - Context & Parameter Triage:\nExamine the provided url, method, and body_params.\nFilter: Pay special attention to POST requests and hidden form parameters. Identify if the payload contains ANY parameter that could represent an entity, state, or user input (e.g., id, login, password, email, username, secret, account, user_id).\nCRITICAL EXCLUSION (When to output DONE): \nYou must ONLY output \"DONE\" and stop if:\n1. There are absolutely NO parameters/keys.\n2. The parameters are EXCLUSIVELY for generic site navigation or open search (e.g., 'q=', 'search=', 'lang=', 'theme=').\n\nSTEP 2 - Original Fetch (Establish Baseline):\nEnsure the payload has valid data to establish a working baseline. CRITICAL: If the provided payload has empty required parameters (like 'email=', 'secret=', 'id='), you MUST fill them with a baseline dummy value (e.g., 'email=user1@test.com', 'secret=pass1') BEFORE making the request. \nUse 'fetch_url' with this completed original payload. Save the status and content.\n\nSTEP 3 - Modified Fetch (Test for IDOR):\nModify the identified object/user reference from STEP 2 to a DIFFERENT value (e.g., change 'user1@test.com' to 'admin@test.com', or 'login=bee' to 'login=admin').\nUse 'fetch_url' with the SAME METHOD and the modified payload.\n\nSTEP 4 - Universal Decision Logic:\nFirst, explicitly list the exact differences between the two responses (Status Code, Content Length, and any specific messages).\nThen, compare the two responses and apply this strict logic tree:\n\nBranch 1 (Explicit Rejection): Did the server reject the modified request? (Status 401, 403, 302 to login, or explicit \"Unauthorized\" / \"Access Denied\" text).\n-> If YES: NOT VULNERABLE.\n\nBranch 2 (Data Exposure - Read IDOR): Did the server accept it (Status 200), AND the response content changed to expose different data (e.g., profile info, invoice details)?\n-> If YES: VULNERABLE.\n\nBranch 3 (State Manipulation - Write IDOR): Is this a data-modifying request (e.g., change secret, update password, delete item), AND BOTH responses returned a \"Success Indicator\" (e.g., Status 200 with \"changed\", \"success\", \"updated\", or identical success layouts) despite using DIFFERENT user identifiers?\n-> If YES: VULNERABLE. (This proves the server processed a state change for another user identifier without session verification).\n\nBranch 4 (Silent Failure / Ignored): Did both requests return identical responses that indicate FAILURE, ERROR, or NO ACTION (e.g., both say \"Invalid user\", \"Error\", or no state was changed)?\n-> If YES: NOT VULNERABLE (False Positive).\n\nSTEP 5 - Execution:\nIf the logic in STEP 4 resulted in VULNERABLE, you MUST execute the 'save_vulnerability' tool call.\nProvide:\n* vulnerability_type: \"idor\"\n* severity: \"high\"\n* url: original url\n* method: original method\n* parameter: the modified parameter\n* payload: the new value\n* evidence: Explain exactly which logic branch from STEP 4 was triggered, why, and include the exact differences you found.\n\nIf you triggered the tool, or if it was NOT VULNERABLE, output DONE at the end.",
+          "maxIterations": 8
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        192,
+        96
+      ],
+      "id": "0c737b0d-c8da-46d7-bac2-d1265ac737f8",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.1,
+          "timeout": 120000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        176,
+        336
+      ],
+      "id": "1fd4f833-ebd4-4a6c-84a8-85d90741ac62",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "XxjsVEgZEtnTR74O",
+          "name": "OpenAI account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Saves the vulnerability. You MUST call this tool EXACTLY ONCE. After calling it and getting a success response, you MUST immediately reply with the word DONE and DO NOT call any other tools.",
+        "method": "POST",
+        "url": "=http://niledefender:5000/api/scans/{{ $('Webhook').first().json.body.scan_id }}/vulnerabilities\n\n\n",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "vulnerability_type",
+              "value": "={{ $fromAI(\"vulnerability_type\", \"The type of vulnerability found, e.g. IDOR\") }}"
+            },
+            {
+              "name": "severity",
+              "value": "={{ $fromAI(\"severity\", \"Severity level: Critical, High, Medium, or Low\") }}"
+            },
+            {
+              "name": "url",
+              "value": "={{ $fromAI(\"url\", \"The full URL where the vulnerability was found\") }}"
+            },
+            {
+              "name": "payload",
+              "value": "={{ $fromAI(\"payload\", \"The payload used to exploit the vulnerability\") }}"
+            },
+            {
+              "name": "evidence",
+              "value": "={{ $fromAI(\"evidence\", \"Evidence that confirms the vulnerability exists\") }}"
+            },
+            {
+              "name": "parameter",
+              "value": "={{ $fromAI(\"parameter\", \"The vulnerable parameter name\") }}"
+            },
+            {
+              "name": "method",
+              "value": "={{ $fromAI(\"method\") }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        416,
+        352
+      ],
+      "id": "18760e8a-1654-4733-89ea-df6fb4d0dbe9",
+      "name": "save_vulnerability"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -32,
+        80
+      ],
+      "id": "7289e27c-368e-487a-a125-6b52d357185a",
+      "name": "Loop Over Items",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "url": "=http://niledefender:5000/api/scans/{{ $('Webhook').item.json.body.scan_id }}/endpoints?docker=1\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -736,
+        80
+      ],
+      "id": "7f171860-e215-4726-9150-7852361246e4",
+      "name": "get_endpoints2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst endpoints = data.endpoints || [];\n\n// 1. مرحلة الفلترة الذكية والموجهة جداً للـ IDOR\nconst suspicious = endpoints.filter(ep => {\n  const url = (ep.url || '').toLowerCase();\n  const method = (ep.method || 'GET').toUpperCase();\n  \n  // أخذ اسم الملف فقط وتجاهل الدومين تماماً\n  const filename = url.split('/').pop().split('?')[0];\n\n  // 🔥 قاعدة الـ GET الصارمة: لو الرابط GET ومعندوش بارامترات، مستحيل نفحص فيه IDOR آلياً\n  const hasUrlParams = /[?&][a-zA-Z0-9_-]+=/i.test(url);\n  if (method === 'GET' && !hasUrlParams) {\n    return false;\n  }\n\n  // ❌ قائمة الحظر لثغرات bWAPP الأخرى والروابط العامة\n  const nonIdorBugs = ['sqli', 'xss', 'csrf', 'htmli', 'commandi', 'captcha', 'ldap', 'xml', 'ssrf', 'clickjacking', 'bof', 'phpi'];\n  const generalBlacklist = ['logout', 'search', 'lang', 'contact', 'about', 'help', 'footer', 'menu'];\n  \n  const isBlacklisted = nonIdorBugs.some(bug => filename.includes(bug)) || \n                        generalBlacklist.some(word => filename.includes(word));\n  if (isBlacklisted) return false;\n\n  // قراءة متغيرات الـ Body للـ POST\n  let bodyKeys = [];\n  if (ep.body_params && typeof ep.body_params === 'object') {\n    bodyKeys = Object.keys(ep.body_params).map(k => k.toLowerCase());\n  }\n\n  // 🎯 الكلمات الدلالية الصارمة لمعرفات الكيانات (Identifiers)\n  const idorKeywords = [\n    'id', 'user', 'login', 'account', 'ticket', 'order', 'doc', 'file', \n    'profile', 'secret', 'email', 'ref', 'token', 'member', 'invoice', 'object'\n  ];\n\n  // فحص الكلمات بحدود صارمة (منع التداخل)\n  const matchKeywordStrict = (str) => {\n    return idorKeywords.some(kw => {\n      // الـ Regex ده بيضمن إن الكلمة جاية لوحدها مش مشتبكة في حروف تانية\n      const regex = new RegExp('(^|[^a-z0-9])' + kw + '([^a-z0-9]|$)', 'i');\n      return regex.test(str);\n    });\n  };\n\n  const filenameHasKeyword = matchKeywordStrict(filename);\n  const bodyHasKeyword = bodyKeys.some(key => matchKeywordStrict(key));\n\n  // الـ POST يدخل فقط لو بيتعامل مع معرف كيان واضح في الـ Body أو الـ URL\n  if (method === 'POST') {\n    return (bodyKeys.length > 0) && (filenameHasKeyword || bodyHasKeyword);\n  }\n\n  return hasUrlParams && (filenameHasKeyword || bodyHasKeyword);\n});\n\n// 2. مرحلة إزالة التكرار الهيكلي (Deduplication)\nconst uniqueEndpoints = [];\nconst seenPatterns = new Set();\n\nsuspicious.forEach(ep => {\n  const url = ep.url || '';\n  const method = (ep.method || 'GET').toUpperCase();\n  let pattern = method + '|' + url;\n\n  if (url.includes('?')) {\n    const base = url.split('?')[0];\n    const params = url.split('?')[1] || '';\n    const paramKeys = params.split('&').map(p => p.split('=')[0]).sort().join(',');\n    pattern = method + '|' + base + '?' + paramKeys;\n  } else if (ep.body_params && typeof ep.body_params === 'object') {\n    const bodyKeysSorted = Object.keys(ep.body_params).sort().join(',');\n    pattern = method + '|' + url + '|' + bodyKeysSorted;\n  }\n\n  if (!seenPatterns.has(pattern)) {\n    seenPatterns.add(pattern);\n    \n    if (ep.body_params && typeof ep.body_params === 'object') {\n      const simplified = {};\n      for (const [key, val] of Object.entries(ep.body_params)) {\n        simplified[key] = (val !== null && typeof val === 'object' && val.value !== undefined) \n          ? val.value : val;\n      }\n      ep.body_params = simplified;\n    }\n    uniqueEndpoints.push(ep);\n  }\n});\n\nconst scanId = $('Webhook').first().json.body.scan_id;\n\nif (uniqueEndpoints.length === 0) {\n  return [{ json: { idor_found: false, scan_id: scanId } }];\n}\n\nreturn uniqueEndpoints.map(ep => ({ \n  json: { \n    url: ep.url, \n    method: ep.method, \n    parameters: ep.parameters, \n    body_params: ep.body_params\n  } \n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        80
+      ],
+      "id": "890e640c-5ebc-4046-9085-5a760cef50a9",
+      "name": "Code in JavaScript",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "description": "Fetches the content of a URL dynamically. Provide 'url', 'method', and 'body'. ",
+        "jsCode": "const url = query.url;\nconst method = (query.method || 'GET').toUpperCase();\nlet body = query.body || query.body_params || null;\n\n// 1. تحويل الـ JSON لـ URL-encoded عشان الـ PHP يفهمه\nif (body) {\n  let bodyObj = null;\n  if (typeof body === 'string' && body.trim().startsWith('{')) {\n    try { bodyObj = JSON.parse(body); } catch(e) {}\n  } else if (typeof body === 'object') {\n    bodyObj = body;\n  }\n  \n  if (bodyObj) {\n    body = Object.keys(bodyObj)\n      .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(bodyObj[key]))\n      .join('&');\n  }\n}\n\n// 2. سحب الكوكي من الـ Webhook\nlet cookieHeader = '';\ntry {\n  const webhookData = $('Webhook').first().json.body;\n  if (webhookData && webhookData.cookie) {\n    cookieHeader = webhookData.cookie;\n  }\n} catch(e) {}\n\n// 3. تنفيذ الريكويست\ntry {\n  const response = await helpers.httpRequest({\n    method: method,\n    url: url,\n    headers: {\n      'Cookie': cookieHeader,\n      'Content-Type': 'application/x-www-form-urlencoded'\n    },\n    body: (method === 'POST' && body) ? body : undefined,\n    returnFullResponse: true,\n    ignoreHttpStatusErrors: true,\n  });\n\n  // 4. معالجة وتجهيز الرد للـ AI\n  const text = (typeof response.body === 'string') ? response.body : JSON.stringify(response.body);\n\n  // 🔥 التعديل الأول: تصنيف وفلترة الـ Inputs بشكل ذكي وصارم\n  let hiddenInputs = [];\n  let visibleInputs = [];\n  \n  const inputRegex = /<input([^>]+)>/gi;\n  let match;\n  while ((match = inputRegex.exec(text)) !== null) {\n    let attrs = match[1];\n    let nameMatch = attrs.match(/name=[\"']([^\"']+)[\"']/i);\n    let valueMatch = attrs.match(/value=[\"']([^\"']*)[\"']/i);\n    let typeMatch = attrs.match(/type=[\"']([^\"']+)[\"']/i);\n    \n    if (nameMatch) {\n      const name = nameMatch[1];\n      const type = typeMatch ? typeMatch[1].toLowerCase() : 'text';\n      const value = valueMatch ? valueMatch[1] : '';\n      \n      if (type === 'hidden') {\n        hiddenInputs.push(`${name}=\"${value}\"`);\n      } else if (name !== 'form' && name !== 'action') { // طنش الأزرار العامة\n        visibleInputs.push(`${name}=\"${value}\"`);\n      }\n    }\n  }\n\n  // صياغة الحقول المكتشفة في سطور واضحة جداً للـ AI\n  let structuralInfo = \"\";\n  if (hiddenInputs.length > 0) structuralInfo += `\\n[CRITICAL HIDDEN FIELDS]: ${hiddenInputs.join(', ')}`;\n  if (visibleInputs.length > 0) structuralInfo += `\\n[VISIBLE FIELDS]: ${visibleInputs.join(', ')}`;\n\n  // 5. تنظيف نص الصفحة وقص القوائم\n  let clean = text.replace(/<script\\b[^<]*(?:(?!<\\/script>)<[^<]*)*<\\/script>/gi, \"\");\n  clean = clean.replace(/<style\\b[^<]*(?:(?!<\\/style>)<[^<]*)*<\\/style>/gi, \"\");\n  clean = clean.replace(/<[^>]+>/g, \" \");\n\n  // قص القائمة الجانبية الطويلة بتاعت bWAPP\n  if (clean.includes(\"Choose your bug:\")) {\n    let parts = clean.split(\"Choose your bug:\");\n    let subParts = parts[1].split(\"---------------------------\");\n    clean = parts[0] + \" \" + (subParts[1] || subParts[0]);\n  }\n\n  // ضغط المسافات\n  clean = clean.replace(/\\s+/g, \" \").trim();\n\n  // 🔥 التعديل التاني: تحديد حجم النص بـ 2500 حرف كحد أقصى لمنع الـ Context Overflow تماماً\n  let clippedContent = clean.substring(0, 2500);\n  if (clean.length > 2500) clippedContent += \"... [Content Truncated for Brevity]\";\n\n  // 6. الرد النهائي المنظم والمثالي للـ AI Agent\n  return `=== SERVER RESPONSE ===\nStatus Code: ${response.statusCode}\nContent Length: ${text.length} bytes${structuralInfo}\nPage Content Text: ${clippedContent}\n=======================`;\n\n} catch (error) {\n  return \"Error during fetch: \" + error.message;\n}",
+        "specifyInputSchema": true,
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"url\": {\n      \"type\": \"string\"\n    },\n    \"method\": {\n      \"type\": \"string\"\n    },\n    \"body_params\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"url\",\n    \"method\"\n  ]\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        608,
+        368
+      ],
+      "id": "e144e556-b97a-417a-8526-27fd5f686469",
+      "name": "fetch_url1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://niledefender:5000/api/scans/{{ $('Webhook').first().json.body.scan_id }}/complete\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        336,
+        -160
+      ],
+      "id": "d72bb097-8f8e-4e3b-a198-9267c8b38d05",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b81f9a41-a3d7-49e6-bb9e-e5200cd89fe5",
+              "leftValue": "={{ $json.url }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -352,
+        80
+      ],
+      "id": "3d24607e-33eb-4086-a071-e980dd4db1c2",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://niledefender:5000/api/scans/{{ $('Webhook').first().json.body.scan_id }}/complete\n",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -176,
+        -96
+      ],
+      "id": "9bc1b39c-b13c-41c7-b906-d420266eda99",
+      "name": "notify_complete"
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "DONE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        128,
+        -112
+      ],
+      "id": "30e18d05-9145-4da9-ad83-927047e7c757",
+      "name": "Aggregate"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "get_endpoints2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "save_vulnerability": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_endpoints2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "fetch_url1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "notify_complete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a323ad00-2b29-434e-8206-f4970bc17a70",
+  "meta": {
+    "instanceId": "bf97ad6953fd923b653d35d460ac472fb955332d1529297edf075a9ce7369950"
+  },
+  "id": "DQdWgpSRzmJrw3m8",
+  "tags": []
+}

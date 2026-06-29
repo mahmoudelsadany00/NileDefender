@@ -1,0 +1,77 @@
+# ============================================================
+# NileDefender — Full Stack Docker Compose
+# ============================================================
+# Usage:
+#   docker compose up --build -d     # Build & start everything
+#   docker compose down              # Stop & remove
+#   docker compose logs -f           # View logs
+#
+# Services:
+#   niledefender → http://localhost:5000
+#   n8n          → http://localhost:5677  (workflow automation)
+#
+# First-time setup:
+#   1. docker compose up --build -d
+#   2. Visit http://localhost:5677  → setup n8n account
+#   3. Import agent_idor.json workflow into n8n
+#   4. Add OpenAI API key credential in n8n
+#   5. Activate the workflow
+#   6. Visit http://localhost:5000 → start scanning!
+# ============================================================
+
+services:
+
+  # ── NileDefender ────────────────────────────────────────
+  niledefender:
+    build: .
+    container_name: niledefender
+    ports:
+      - "5000:5000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./output:/app/output
+      - ./config.ini:/app/config.ini:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+      - RUNNING_IN_DOCKER=1
+    depends_on:
+      - n8n
+    restart: unless-stopped
+    networks:
+      - niledefender-net
+
+  # ── n8n AI Workflow Engine ───────────────────────────────
+  n8n:
+    image: n8nio/n8n
+    container_name: n8n
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "5677:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5677/
+      - GENERIC_TIMEZONE=Africa/Cairo
+      - N8N_HTTP_REQUEST_TIMEOUT=300000
+      - EXECUTIONS_TIMEOUT=600
+      - EXECUTIONS_TIMEOUT_MAX=1200
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_PERSONALIZATION_ENABLED=false
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    restart: unless-stopped
+    networks:
+      - niledefender-net
+
+networks:
+  niledefender-net:
+    driver: bridge
+
+volumes:
+  n8n_data:
